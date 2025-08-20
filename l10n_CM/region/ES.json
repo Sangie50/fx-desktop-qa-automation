@@ -1,0 +1,13 @@
+{
+  "region": "ES",
+  "sites": [
+    "demo",
+    "ebay",
+    "zooplus",
+    "thenorthface",
+    "calvinklein",
+    "zara"
+  ],
+  "tests": [
+  ]
+}

@@ -104,7 +104,14 @@ class Utilities:
             "Yukon": "YT",
         }
         # temporary fix until faker issue is resolved
-        self.country_local_translation = {"Germany": "Deutschland"}
+        self.country_local_translation = {
+            "Germany": "Deutschland",
+            "Italy": "Italia",
+            "Spain": "España",
+            "Poland": "Polska",
+            "Belgium": "België",
+        }
+
         self.fake = None
         self.locale = None
 
@@ -212,14 +219,15 @@ class Utilities:
         """
 
         # Check if locale exists, otherwise return None
-        locale = next(filter(lambda x: country_code in x, AVAILABLE_LOCALES), None)
+        locales = list(filter(lambda x: country_code in x, AVAILABLE_LOCALES))
 
-        if not locale:
+        if not locales:
             logging.error(
                 f"Invalid country code `{country_code}`. No faker instance created."
             )
             return None  # No fallback
 
+        locale = next(filter(lambda x: "en" in x, locales), locales[-1])
         try:
             # seed to get consistent data
             if self.fake is None:
@@ -277,7 +285,12 @@ class Utilities:
         region_attributes = ["state", "administrative_unit", "region"]
         fake, valid_code = self.create_localized_faker(country_code)
         name = fake.name()
-        given_name, family_name = name.split()
+
+        # Safely split the name
+        name_parts = name.split()
+        given_name = name_parts[0]
+        family_name = name_parts[-1] if len(name_parts) > 1 else ""
+
         organization = fake.company().replace(",", "")
         street_address = fake.street_address()
         # find correct attribute for selected locale
@@ -325,7 +338,12 @@ class Utilities:
         """
         fake, valid_code = self.create_localized_faker(country_code)
         name = fake.name()
-        given_name, family_name = name.split()
+
+        # Safely split the name
+        name_parts = name.split()
+        given_name = name_parts[0]
+        family_name = name_parts[-1] if len(name_parts) > 1 else ""
+
         card_number = fake.credit_card_number()
         generated_credit_expiry = fake.credit_card_expire()
         expiration_month, expiration_year = generated_credit_expiry.split("/")
@@ -343,20 +361,10 @@ class Utilities:
             cvv=cvv,
             telephone=telephone,
         )
-
-        while len(fake_data.card_number) <= 14:
-            name = fake.name()
+        card_number = fake_data.card_number
+        while len(card_number) <= 14:
             card_number = fake.credit_card_number()
-            generated_credit_expiry = fake.credit_card_expire()
-            expiration_month, expiration_year = generated_credit_expiry.split("/")
-            cvv = fake.credit_card_security_code()
-            fake_data = CreditCardBase(
-                name=name,
-                card_number=card_number,
-                expiration_month=expiration_month,
-                expiration_year=expiration_year,
-                cvv=cvv,
-            )
+        setattr(fake_data, "card_number", card_number)
         cc_mapping = {
             "card_number": "credit_card_number",
             "name": "name",
@@ -554,6 +562,11 @@ class Utilities:
             "CA": "1",
             "FR": "33",
             "DE": "49",
+            "GB": "44",
+            "IT": "39",
+            "PL": "48",
+            "ES": "34",
+            "BE": "32",
         }
 
         # Sub out anything that matches this regex statement with an empty string to get rid of extensions in generated phone numbers
@@ -573,8 +586,8 @@ class Utilities:
             # Remove country code from the local number
             local_number = digits[len(country_code) :]
 
-        # Handle leading zero in local numbers (France & Germany)
-        if region in ["FR", "DE"] and local_number.startswith("0"):
+        # Handle leading zero in local numbers
+        if region not in ["US", "CA"] and local_number.startswith("0"):
             # Remove the leading zero
             local_number = local_number[1:]
 

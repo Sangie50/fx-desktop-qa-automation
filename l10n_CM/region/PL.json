@@ -1,0 +1,13 @@
+{
+  "region": "PL",
+  "sites": [
+    "demo",
+    "zalando",
+    "duka",
+    "ceneo",
+    "tanie-leczenie",
+    "cocolita"
+  ],
+  "tests": [
+  ]
+}
