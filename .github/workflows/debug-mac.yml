@@ -1,0 +1,92 @@
+---
+name: Debug Mac (tmate SSH)
+
+# Manual trigger only - this workflow is for debugging on your fork.
+# Do NOT merge this file to upstream.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to checkout for debugging"
+        required: true
+        default: "main"
+        type: string
+      channel:
+        description: "Firefox channel (beta, devedition, rc, release)"
+        required: false
+        default: "beta"
+        type: string
+      tmate_minutes:
+        description: "How long the SSH session stays open (minutes)"
+        required: false
+        default: "60"
+        type: string
+
+env:
+  FX_CHANNEL: ${{ inputs.channel }}
+
+jobs:
+  Debug-MacOS:
+    runs-on: macos-latest
+    timeout-minutes: 120
+
+    env:
+      STARFOX_PLATFORM: mac
+      STARFOX_SPLIT: smoke
+      TESTRAIL_REPORT: false
+      REPORTABLE: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          mkdir -p artifacts
+          pip3 install 'pipenv==2023.11.15'
+          pip3 install 'ruff>=0.4.8,<0.5'
+          rm -f ./pyproject.toml
+          mv ./config/ci_pyproject_no_reruns.toml ./pyproject.toml
+          pipenv install
+          echo "FX_DOWNLOAD_URL=$(pipenv run python -m scripts.collect_executables)" >> "$GITHUB_ENV"
+          echo "FX_VERSION=$(pipenv run python -m scripts.collect_executables -n)" >> "$GITHUB_ENV"
+          echo "GECKO_DOWNLOAD_URL=$(pipenv run python -m scripts.collect_executables -g)" >> "$GITHUB_ENV"
+
+      - name: Install Fx
+        id: setup
+        run: |
+          echo app_name=$(bash ./scripts/collect_executables.sh | xargs -0 ./scripts/parse_executables.sh) >> "$GITHUB_OUTPUT"
+
+      - name: Print debugging info
+        run: |
+          echo "==================================================="
+          echo "  Mac is ready. SSH session will start next."
+          echo "==================================================="
+          echo ""
+          echo "App name:       ${{ steps.setup.outputs.app_name }}"
+          echo "FX executable:  /Volumes/${{ steps.setup.outputs.app_name }}/${{ steps.setup.outputs.app_name }}.app/Contents/MacOS/firefox"
+          echo "Repo path:      $(pwd)"
+          echo ""
+          echo "Once connected via SSH, run:"
+          echo ""
+          echo "  cd $(pwd)"
+          echo "  export FX_EXECUTABLE=/Volumes/${{ steps.setup.outputs.app_name }}/${{ steps.setup.outputs.app_name }}.app/Contents/MacOS/firefox"
+          echo "  pipenv run pytest --fx-executable=\"\$FX_EXECUTABLE\" tests/tabs/test_new_tab_label.py::test_new_tab_label -v -s"
+          echo ""
+          echo "To exit and end the session:  touch /tmp/keepalive ; exit 0  (then 'continue')"
+          echo "Or just exit and let the session timeout."
+          echo "==================================================="
+
+      - name: Setup tmate SSH session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+          detached: false
+        timeout-minutes: ${{ fromJSON(inputs.tmate_minutes) }}
